@@ -12,6 +12,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 
 (async () => {
   const base = process.argv[2] || 'http://127.0.0.1:8000';
@@ -20,20 +21,32 @@ const path = require('path');
     puppeteer = require('puppeteer');
   } catch {
     puppeteer = require('puppeteer-core');
-    if (process.env.CHROME_PATH) {
-      launchOpts.executablePath = process.env.CHROME_PATH;
-    } else {
-      const os = require('os');
-      const mod = require('@sparticuz/chromium');
-      const chromium = mod.default || mod;
-      launchOpts.executablePath = await chromium.executablePath();
-      launchOpts.args = [...(chromium.args || []), ...launchOpts.args];
-      // the serverless build keeps NSS/NSPR in al2023.tar.br and only unpacks them on
-      // Amazon Linux — unpack them too so the binary loads on any distro
-      const bin = path.join(path.dirname(require.resolve('@sparticuz/chromium')), '..', 'bin');
-      if (fs.existsSync(path.join(bin, 'al2023.tar.br'))) {
-        await mod.inflate(path.join(bin, 'al2023.tar.br'));
-        mod.setupLambdaEnvironment?.(path.join(os.tmpdir(), 'al2023', 'lib'));
+    const candidates = [
+      process.env.CHROME_PATH,
+      'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+      'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+      'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+      '/usr/bin/google-chrome',
+      '/usr/bin/chromium-browser',
+      '/usr/bin/chromium'
+    ].filter(Boolean);
+    for (const p of candidates) {
+      if (fs.existsSync(p)) { launchOpts.executablePath = p; break; }
+    }
+    if (!launchOpts.executablePath) {
+      try {
+        const mod = require('@sparticuz/chromium');
+        const chromium = mod.default || mod;
+        launchOpts.executablePath = await chromium.executablePath();
+        launchOpts.args = [...(chromium.args || []), ...launchOpts.args];
+        const bin = path.join(path.dirname(require.resolve('@sparticuz/chromium')), '..', 'bin');
+        if (fs.existsSync(path.join(bin, 'al2023.tar.br'))) {
+          await mod.inflate(path.join(bin, 'al2023.tar.br'));
+          mod.setupLambdaEnvironment?.(path.join(os.tmpdir(), 'al2023', 'lib'));
+        }
+      } catch (err) {
+        throw new Error('No Chrome/Chromium found. Set CHROME_PATH or install puppeteer / @sparticuz/chromium');
       }
     }
   }
@@ -78,7 +91,7 @@ const path = require('path');
   ok('bring-your-own panel has drop area + buttons', await page.$('#byoDrop') !== null && await page.$('[data-byo="files"]') !== null);
 
   // 5 · import a file into IndexedDB
-  const wav = path.join('/tmp', 'prat-smoke-import.wav');
+  const wav = path.join(os.tmpdir(), 'prat-smoke-import.wav');
   const frames = 22050; const buf = Buffer.alloc(44 + frames * 2);
   buf.write('RIFF'); buf.writeUInt32LE(36 + frames * 2, 4); buf.write('WAVEfmt ', 8);
   buf.writeUInt32LE(16, 16); buf.writeUInt16LE(1, 20); buf.writeUInt16LE(1, 22);
