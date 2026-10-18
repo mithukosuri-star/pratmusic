@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - arena/a6ad21aa-pratmusic
   workflow_dispatch:
 
 permissions:

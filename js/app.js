@@ -63,7 +63,7 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
     this.moveTo(x + r, y); this.arcTo(x + w, y, x + w, y + h, r); this.arcTo(x + w, y + h, x, y + h, r);
     this.arcTo(x, y + h, x, y, r); this.arcTo(x, y, x + w, y, r); this.closePath(); return this; };
 }
-decks.forEach((d) => { d.preload = 'auto'; d.crossOrigin = 'anonymous'; });
+decks.forEach((d) => { d.preload = 'metadata'; d.crossOrigin = 'anonymous'; });
 function ensureAudio() {
   if (ctxA) { if (ctxA.state === 'suspended') ctxA.resume(); return; }
   const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
@@ -92,6 +92,7 @@ function playAt(qi, opts = {}) {
     if (my !== playToken) return;
     ensureAudio(); applyVolume();
     dIn.play().then(() => {
+      if (my !== playToken) return;
       S.playing = true; document.body.classList.remove('paused');
       if (S.xfade > 0 && wasPlaying && gains.length) {
         const g0 = gains[active], g1 = gains[incoming], now = ctxA.currentTime;
@@ -100,7 +101,7 @@ function playAt(qi, opts = {}) {
         g0.gain.cancelScheduledValues(now); g0.gain.setValueAtTime(Math.max(g0.gain.value, 0.0001), now);
         g0.gain.exponentialRampToValueAtTime(0.0001, now + S.xfade);
         setTimeout(() => { dOut.pause(); if (g0) g0.gain.value = 0; }, S.xfade * 1000 + 120);
-      } else if (gains.length) { gains[incoming].gain.value = 1; gains[active].gain.value = 0; }
+      } else if (gains.length) { dOut.pause(); gains[incoming].gain.value = 1; gains[active].gain.value = 0; }
       active = incoming;
       onTrackStart(t, opts);
     }).catch((e) => { toast(`Couldn't play <b>${esc(t.title)}</b> — ${esc(e.name)}`); });
@@ -111,14 +112,16 @@ function playAt(qi, opts = {}) {
     const p = S.pos[t.id];
     dIn.addEventListener('loadedmetadata', () => { if (p > 5 && p < dIn.duration - 8) dIn.currentTime = p; }, { once: true });
   }
-  if (dIn.readyState >= 3) start(); else dIn.addEventListener('canplay', start, { once: true });
+  start();
 }
 
 function onTrackStart(t, opts) {
   setAccent(t);
   S.recent = [t.id, ...S.recent.filter((x) => x !== t.id)].slice(0, 12); LS.set('pratmusic.recent', S.recent);
   document.title = `${t.title} — ${t.artist} · PratMusic`;
-  syncPlayerUI(); renderQueue(); renderView(true);
+  syncPlayerUI();
+  if ($('#queue')?.classList.contains('open')) renderQueue();
+  syncActiveCards();
   mediaSession(t);
   if (!opts.silent) toast(`▶ <b>${esc(t.title)}</b> — ${esc(t.artist)}`);
 }
@@ -161,7 +164,12 @@ decks.forEach((d, i) => d.addEventListener('ended', () => { if (i !== active) re
   S.pos[t.id] = 0; LS.set('pratmusic.pos', S.pos); LS.set('pratmusic.recent', S.recent);
   next(true);
 }));
-decks.forEach((d, i) => d.addEventListener('timeupdate', () => { if (i === active && cur()) { S.pos[cur().id] = d.currentTime; } }));
+decks.forEach((d, i) => d.addEventListener('timeupdate', () => {
+  if (i === active && cur()) {
+    S.pos[cur().id] = d.currentTime;
+    updateProgress();
+  }
+}));
 setInterval(() => { if (cur()) LS.set('pratmusic.pos', S.pos); }, 4000);
 
 function playList(ids, id) {
@@ -358,6 +366,22 @@ function renderQueue() {
       <button class="icon-btn sm" data-qdel="${i}" title="Remove">✕</button></li>`;
   }).join('') || `<div class="empty"><b>Queue is empty</b>Play something and it lines up here.</div>`;
 }
+function syncActiveCards() {
+  const curId = cur()?.id;
+  const playSvg = `<svg viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg>`;
+  for (const el of $$('[data-card]', viewEl)) {
+    const on = el.dataset.card === curId;
+    el.classList.toggle('playing', on);
+    const goB = el.querySelector('.go b');
+    if (goB) goB.innerHTML = on && S.playing ? eqHtml() : playSvg;
+  }
+  for (const el of $$('[data-row]', viewEl)) {
+    const on = el.dataset.row === curId;
+    el.classList.toggle('playing', on);
+    const go = el.querySelector('.go');
+    if (go) go.innerHTML = on && S.playing ? eqHtml() : playSvg;
+  }
+}
 function syncPlayerUI() {
   const t = cur();
   $('#player').classList.toggle('playing', S.playing);
@@ -385,23 +409,50 @@ function syncPlayerUI() {
   const nf = $('#npFav'); nf.classList.toggle('on', t && S.favs.has(t.id)); nf.firstElementChild.textContent = t && S.favs.has(t.id) ? '♥' : '♡';
   $('#muteBtn').classList.toggle('muted', S.muted);
   $('#vizSel').value = String(S.viz); $('#xfadeSel').value = String(S.xfade); $('#resumeChk').checked = S.resume;
+  syncActiveCards();
+  updateProgress();
+  ensureVizLoop();
 }
 
 /* ── progress + visualizer loop ────────────────────────────────── */
-const vizC = $('#viz'); let vizCtx = vizC.getContext('2d');
-function loop() {
-  requestAnimationFrame(loop);
+const vizC = $('#viz'); const vizCtx = vizC.getContext('2d');
+const seekEl = $('#seek'), npSeekEl = $('#npSeek');
+const seekFill = seekEl?.closest('.seek-wrap')?.querySelector('.seek-fill');
+const npSeekFill = npSeekEl?.closest('.seek-wrap')?.querySelector('.seek-fill');
+const tCurEl = $('#tCur'), npCurEl = $('#npCur'), npEl = $('#np');
+let lastSec = -1, vizRaf = 0, vizFreqBuf = null, vizTimeBuf = null;
+
+function updateProgress() {
   const d = deck(), t = cur();
-  if (t && d.duration) {
-    const p = d.currentTime / d.duration;
-    for (const [inp, fill] of [['#seek', null], ['#npSeek', null]]) {
-      const el = $(inp); if (!el) continue;
-      if (!(el.dataset.drag === '1')) { el.value = String(Math.round(p * 1000)); }
-      const wrap = el.closest('.seek-wrap'); if (wrap) wrap.querySelector('.seek-fill').style.width = (p * 100) + '%';
-    }
-    $('#tCur').textContent = fmt(d.currentTime); $('#npCur').textContent = fmt(d.currentTime);
+  if (!t || !d.duration) return;
+  const p = d.currentTime / d.duration;
+  const val = String(Math.round(p * 1000));
+  const pct = (p * 100) + '%';
+  if (seekEl && seekEl.dataset.drag !== '1') seekEl.value = val;
+  if (seekFill) seekFill.style.width = pct;
+  if (npSeekEl && npSeekEl.dataset.drag !== '1') npSeekEl.value = val;
+  if (npSeekFill) npSeekFill.style.width = pct;
+  const sec = Math.floor(d.currentTime || 0);
+  if (sec !== lastSec) {
+    lastSec = sec;
+    const str = fmt(sec);
+    if (tCurEl) tCurEl.textContent = str;
+    if (npCurEl) npCurEl.textContent = str;
   }
-  if (!$('#np').classList.contains('hidden')) drawViz();
+}
+
+function ensureVizLoop() {
+  const want = S.playing && npEl && !npEl.classList.contains('hidden');
+  if (want && !vizRaf) vizRaf = requestAnimationFrame(loop);
+  else if (!want && vizRaf) { cancelAnimationFrame(vizRaf); vizRaf = 0; }
+}
+
+function loop() {
+  vizRaf = 0;
+  if (!S.playing || !npEl || npEl.classList.contains('hidden')) return;
+  updateProgress();
+  drawViz();
+  vizRaf = requestAnimationFrame(loop);
 }
 function sizeViz() { const dpr = Math.min(2, devicePixelRatio || 1); vizC.width = vizC.clientWidth * dpr; vizC.height = vizC.clientHeight * dpr; }
 function drawViz() {
@@ -411,29 +462,31 @@ function drawViz() {
   const n = analyser.frequencyBinCount;
   const grad = g.createLinearGradient(0, 0, w, h); grad.addColorStop(0, S.acc); grad.addColorStop(1, S.acc2);
   if (S.viz === 2) {
-    const td = new Uint8Array(analyser.fftSize); analyser.getByteTimeDomainData(td);
-    g.lineWidth = 2.5 * (devicePixelRatio || 1); g.strokeStyle = grad; g.shadowColor = S.acc; g.shadowBlur = 18;
+    if (!vizTimeBuf || vizTimeBuf.length !== analyser.fftSize) vizTimeBuf = new Uint8Array(analyser.fftSize);
+    analyser.getByteTimeDomainData(vizTimeBuf);
+    g.lineWidth = 2.5 * (devicePixelRatio || 1); g.strokeStyle = grad;
     g.beginPath();
-    for (let i = 0; i < td.length; i += 2) { const x = i / td.length * w, y = h * .82 + (td[i] - 128) / 128 * h * .16; i ? g.lineTo(x, y) : g.moveTo(x, y); }
-    g.stroke(); g.shadowBlur = 0; return;
+    for (let i = 0; i < vizTimeBuf.length; i += 2) { const x = i / vizTimeBuf.length * w, y = h * .82 + (vizTimeBuf[i] - 128) / 128 * h * .16; i ? g.lineTo(x, y) : g.moveTo(x, y); }
+    g.stroke(); return;
   }
-  const fd = new Uint8Array(n); analyser.getByteFrequencyData(fd);
-  const at = (i) => fd[Math.floor(Math.pow(i / 64, 1.7) * (n * .72))] / 255;
+  if (!vizFreqBuf || vizFreqBuf.length !== n) vizFreqBuf = new Uint8Array(n);
+  analyser.getByteFrequencyData(vizFreqBuf);
+  const at = (i) => vizFreqBuf[Math.floor(Math.pow(i / 64, 1.7) * (n * .72))] / 255;
   if (S.viz === 1) {
     const cx = w / 2, cy = h * 1.06, r0 = Math.min(w, h) * .20;
     let bass = 0; for (let i = 0; i < 8; i++) bass += at(i); bass /= 8;
-    g.strokeStyle = grad; g.lineCap = 'round'; g.shadowColor = S.acc; g.shadowBlur = 14;
+    g.strokeStyle = grad; g.lineCap = 'round';
     for (let i = 0; i <= 72; i++) {
       const a = Math.PI + (i / 72) * Math.PI, v = at(i % 64);
       const r1 = r0 + v * Math.min(w, h) * .34;
       g.lineWidth = Math.max(2, w / 420);
       g.beginPath(); g.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0); g.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1); g.stroke();
     }
-    g.shadowBlur = 0; g.lineWidth = 2; g.globalAlpha = .4 + bass * .5;
+    g.lineWidth = 2; g.globalAlpha = .4 + bass * .5;
     g.beginPath(); g.arc(cx, cy, r0 * (0.9 + bass * .16), Math.PI, 2 * Math.PI); g.stroke(); g.globalAlpha = 1; return;
   }
   const bars = 84, bw = w / bars;
-  g.fillStyle = grad; g.shadowColor = S.acc; g.shadowBlur = 12;
+  g.fillStyle = grad;
   for (let i = 0; i < bars; i++) {
     const v = at(i), bh = Math.max(3, v * h * .30), x = i * bw + bw * .18, y = h * .88;
     g.globalAlpha = .35 + v * .65;
@@ -441,9 +494,8 @@ function drawViz() {
     g.globalAlpha = .16 + v * .22;
     g.beginPath(); g.roundRect(x, y + 4, bw * .64, bh * .3, bw * .32); g.fill();
   }
-  g.globalAlpha = 1; g.shadowBlur = 0;
+  g.globalAlpha = 1;
 }
-requestAnimationFrame(loop);
 
 /* ── UI bindings ───────────────────────────────────────────────── */
 function toast(html, ms = 3200) {
@@ -492,16 +544,22 @@ function bindPlay(container) {
   });
 }
 bindPlay(viewEl); bindPlay($('#queueList'));
-viewEl.addEventListener('mousemove', (e) => {
-  const c = e.target.closest('.card'); if (!c) return;
-  const r = c.getBoundingClientRect();
-  c.style.setProperty('--mx', (e.clientX - r.left) + 'px'); c.style.setProperty('--my', (e.clientY - r.top) + 'px');
-});
 
 function toggleFav(id) {
-  if (S.favs.has(id)) S.favs.delete(id); else S.favs.add(id);
-  LS.set('pratmusic.favs', [...S.favs]); syncPlayerUI(); renderView(true);
-  toast(S.favs.has(id) ? '♥ added to favorites' : 'removed from favorites');
+  const on = !S.favs.has(id);
+  if (on) S.favs.add(id); else S.favs.delete(id);
+  LS.set('pratmusic.favs', [...S.favs]);
+  syncPlayerUI();
+  if (S.view === 'favs') renderView(true);
+  else {
+    for (const b of $$('[data-fav]', viewEl)) {
+      if (b.dataset.fav === id) {
+        b.classList.toggle('on', on);
+        b.textContent = on ? '♥' : '♡';
+      }
+    }
+  }
+  toast(on ? '♥ added to favorites' : 'removed from favorites');
 }
 $('#pFav').addEventListener('click', () => cur() && toggleFav(cur().id));
 $('#npFav').addEventListener('click', () => cur() && toggleFav(cur().id));
@@ -552,7 +610,7 @@ $('#vizBtn').addEventListener('click', () => { S.viz = (S.viz + 1) % 3; LS.set('
 
 /* now playing overlay */
 function openNP() { $('#np').classList.remove('hidden'); sizeViz(); syncPlayerUI(); }
-function closeNP() { $('#np').classList.add('hidden'); }
+function closeNP() { $('#np').classList.add('hidden'); ensureVizLoop(); }
 $('#npOpen').addEventListener('click', openNP); $('#npClose').addEventListener('click', closeNP);
 $('.np-art').addEventListener('mousemove', (e) => {
   const r = e.currentTarget.getBoundingClientRect();
