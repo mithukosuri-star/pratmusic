@@ -175,10 +175,19 @@ function visibleIds() {
   const q = S.query.trim().toLowerCase();
   return S.tracks.filter((t) =>
     (S.genre === 'all' || t.genre === S.genre) &&
-    (!q || [t.title, t.artist, t.album, t.genre].join(' ').toLowerCase().includes(q))
+    (!q || [t.title, t.artist, t.album, t.genre, t.mood, ...(t.vibe || [])].join(' ').toLowerCase().includes(q))
   ).map((t) => t.id);
 }
 const genres = () => [...new Set(S.tracks.map((t) => t.genre))];
+
+/* big-name pop artists we match by vibe only — their masters are never bundled */
+const VIBE_ARTISTS = [
+  ['Lana Del Rey', 'cinematic dream-pop'],
+  ['The Neighbourhood', 'dark indie pop'],
+  ['Dua Lipa', 'disco dance-pop'],
+  ['Rihanna', 'dance-floor electropop'],
+  ['Lady Gaga', 'synth-pop hooks']
+];
 
 /* ── rendering ────────────────────────────────────────────────── */
 const viewEl = $('#view');
@@ -223,6 +232,52 @@ function heroHtml(t) {
       </div>
     </div></div>`;
 }
+function demoBannerHtml() {
+  if (!S.tracks.some((t) => t.placeholder)) return '';
+  return `<div class="demo-banner"><b>Preview build</b> — bundled audio is generated demo placeholders right now. Run <code>python3 tools/build_library.py</code> with Internet access to fetch the licensed masters.</div>`;
+}
+function byoTeaserHtml() {
+  return `<div class="byo-teaser">
+    <div><b>Bring your own files</b><span>own Lana Del Rey, The Neighbourhood, Dua Lipa, Rihanna or Lady Gaga? drop those files in — they live in this browser, offline forever.</span></div>
+    <button class="cta" data-goto="uploads">Open panel</button></div>`;
+}
+function byoHtml() {
+  const chips = VIBE_ARTISTS.map(([name, tag]) =>
+    `<button class="vibe-chip" data-vibe="${esc(name)}" title="Find open-licensed tracks with a ${esc(name)} vibe"><b>${esc(name)}</b><span>${esc(tag)}</span></button>`).join('');
+  const used = new Set(), picked = [];
+  for (const [name] of VIBE_ARTISTS) {
+    const cand = S.tracks.filter((x) => (x.vibe || []).includes(name));
+    const t = cand.find((x) => !used.has(x.id)) || cand[0];
+    if (t) { used.add(t.id); picked.push({ name, t }); }
+  }
+  const matches = picked.map(({ name, t }) => `
+    <div class="vibe-match" style="--tc:${t.accent || S.acc}" data-play="${t.id}" title="Play ${esc(t.title)}">
+      <img src="${coverOf(t)}" alt=""><div class="vm-t"><b>${esc(t.title)}</b><span>${esc(t.artist)}</span><em>vibe · ${esc(name)}</em></div></div>`).join('');
+  return `<section class="byo">
+    <div class="byo-head">
+      <div class="byo-kicker">bring your own files</div>
+      <h2>Craving the big pop voices?</h2>
+      <p>Love the sound of <b>Lana Del Rey</b>, <b>The Neighbourhood</b>, <b>Dua Lipa</b>, <b>Rihanna</b> or <b>Lady Gaga</b>?
+      Their actual records are copyrighted and are <b>never bundled here</b>. Drop in the files <i>you</i> own and
+      PratMusic keeps them on this device — offline playback, visualizer, two-deck crossfade, favourites, media keys.</p>
+      <div class="byo-artists">${chips}</div>
+    </div>
+    <div class="byo-drop" id="byoDrop">
+      <div class="byo-drop-in">
+        <b>Drop your audio files here</b>
+        <span>mp3 · m4a · flac · wav · ogg · opus — saved to IndexedDB, never uploaded, plays in airplane mode</span>
+        <div class="byo-btns">
+          <button class="cta" data-byo="files"><svg viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg>add files</button>
+          <button class="ghost" data-byo="folder">📁 add whole folder</button>
+        </div>
+      </div>
+    </div>
+    <div class="byo-matches">
+      <div class="tiny">While you dig up your files — open-licensed tracks that share the vibe <i>(never their songs)</i>:</div>
+      <div class="vibe-grid">${matches}</div>
+    </div>
+  </section>`;
+}
 function renderView(soft) {
   const tracks = allTracks();
   const ids = visibleIds(), list = ids.map((id) => S.byId[id]);
@@ -241,6 +296,7 @@ function renderView(soft) {
       </div>`;
     const rec = S.recent.map((id) => S.byId[id]).filter(Boolean).slice(0, 6);
     if (rec.length) html += `<div class="sec"><h2>Jump back in</h2></div><div class="rows">${rec.map((t) => rowHtml(t)).join('')}</div>`;
+    html += byoTeaserHtml();
     html += `<div class="sec"><h2>The vault</h2><span class="tiny">${tracks.length} tracks · all stored offline</span></div>` + gridOrRows(list);
   } else if (S.view === 'library') {
     html = `<div class="sec"><h2>Library</h2><span class="tiny">${list.length} of ${tracks.length} tracks</span>
@@ -251,22 +307,20 @@ function renderView(soft) {
       (favs.length ? `<div class="rows">${favs.map((t) => rowHtml(t)).join('')}</div>` : `<div class="empty"><b>No favorites yet</b>Tap the ♡ on any track to keep it close.</div>`);
   } else if (S.view === 'uploads') {
     const ups = tracks.filter((t) => t.kind === 'user');
-    html = `<div class="sec"><h2>Your music</h2><span class="tiny">${ups.length} imported · stored in this browser</span></div>
-      <div class="row" style="grid-template-columns:1fr;justify-items:center;padding:34px;cursor:pointer" id="dropZone">
-        <div style="text-align:center"><b style="font-size:16px">Drop audio files anywhere</b>
-        <div class="a" style="margin-top:6px">mp3 · m4a · flac · wav · ogg — they're saved to IndexedDB and play with zero connection.<br>
-        <span style="color:var(--acc)">click here</span> or use “＋ add music” / “📁 folder” above.</div></div></div>` +
-      (ups.length ? `<div class="rows" style="margin-top:14px">${ups.map((t) => rowHtml(t, `<button class="icon-btn" data-del="${t.id}" title="Remove from device">🗑</button>`)).join('')}</div>` : '');
+    html = byoHtml() +
+      (ups.length ? `<div class="sec"><h2>Your music</h2><span class="tiny">${ups.length} imported · stored in this browser</span></div>
+        <div class="rows">${ups.map((t) => rowHtml(t, `<button class="icon-btn" data-del="${t.id}" title="Remove from device">🗑</button>`)).join('')}</div>` : '');
   } else if (S.view === 'credits') {
     html = `<div class="sec"><h2>Credits & licences</h2></div><div class="credits">
-      <p>Every bundled track is openly licensed by its artist and hosted on the <a href="https://archive.org" target="_blank" rel="noopener">Internet Archive</a>. Prism keeps the audio unmodified and credits each work below — please support the artists.</p>
+      <p>Every bundled track is openly licensed by its artist and hosted on the <a href="https://archive.org" target="_blank" rel="noopener">Internet Archive</a>. PratMusic keeps the audio unmodified and credits each work below — please support the artists.</p>
+      <p>Tracks tagged with big-name <i>vibes</i> (Lana Del Rey, The Neighbourhood, Dua Lipa, Rihanna, Lady Gaga) are open-licensed look-alikes, <b>never the original recordings</b>. Own those records? <a href="#uploads" data-goto="uploads">Bring your own files</a> — they stay on this device.</p>
       <div class="rows">${tracks.filter((t) => t.kind === 'bundled').map((t) => `<div class="row" style="--tc:${t.accent}">
         <div class="cov"><img src="${coverOf(t)}" alt=""></div>
-        <div><div class="t">${esc(t.title)}</div><div class="a">${esc(t.artist)} — ${esc(t.album)}</div></div>
+        <div><div class="t">${esc(t.title)}</div><div class="a">${esc(t.artist)} — ${esc(t.album)}${t.placeholder ? ' · <em class="demo-tag">demo placeholder</em>' : ''}</div></div>
         <span class="g" style="text-align:right">${esc(t.licenseName)}<br><a href="${esc(t.source)}" target="_blank" rel="noopener">archive.org ↗</a></span></div>`).join('')}</div>
-      <p style="margin-top:16px">Imported files never leave your device. Prism itself is a single offline web app — install it and it works in airplane mode.</p></div>`;
+      <p style="margin-top:16px">Imported files never leave your device. PratMusic itself is a single offline web app — install it and it works in airplane mode.</p></div>`;
   }
-  viewEl.innerHTML = html;
+  viewEl.innerHTML = demoBannerHtml() + html;
   if (!soft) { viewEl.classList.remove('swap'); void viewEl.offsetWidth; viewEl.classList.add('swap'); }
   renderGenreChips();
 }
@@ -402,7 +456,18 @@ function bindPlay(container) {
       return; }
     const lb = e.target.closest('#layoutBtn');
     if (lb) { S.layout = S.layout === 'grid' ? 'list' : 'grid'; LS.set('pratmusic.layout', S.layout); renderView(); return; }
-    const dz = e.target.closest('#dropZone'); if (dz) $('#filePick').click();
+    const dz = e.target.closest('#dropZone,#byoDrop');
+    if (dz && !e.target.closest('[data-byo]')) { $('#filePick').click(); return; }
+    const byo = e.target.closest('[data-byo]');
+    if (byo) { (byo.dataset.byo === 'folder' ? folderPick : $('#filePick')).click(); return; }
+    const go = e.target.closest('[data-goto]');
+    if (go) { e.preventDefault(); setView(go.dataset.goto); return; }
+    const vb = e.target.closest('[data-vibe]');
+    if (vb) {
+      const name = vb.dataset.vibe;
+      searchEl.value = name; S.query = name; $('#clearSearch').classList.remove('hidden');
+      setViewSoftLibrary(); setView('library'); return;
+    }
   });
 }
 bindPlay(viewEl); bindPlay($('#queueList'));

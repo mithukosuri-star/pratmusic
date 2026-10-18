@@ -2,7 +2,7 @@
    Precaches the app shell, library metadata, cover art and all bundled audio
    so the whole player works with the network (and the server) fully offline.
    Supports HTTP Range requests out of the cache so audio seeking works offline. */
-const VERSION = 'pratmusic-v1';
+const VERSION = 'pratmusic-v2';
 const CORE = [
   './', './index.html', './manifest.webmanifest',
   './css/style.css', './js/db.js', './js/app.js', './library.json',
