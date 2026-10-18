@@ -1,5 +1,7 @@
 # 🎧 PratMusic — offline music
 
+> Repo: https://github.com/mithukosuri-star/pratmusic — clone it, then `pip install pillow && python3 tools/build_library.py` to fetch the 70 MB open-licensed catalogue.
+
 A fully **offline-first** music player as an installable web app (PWA). Glassmorphism + aurora
 interface that re-colours itself from the artwork of whatever is playing, a live WebAudio
 visualizer, crossfade, queue, favorites, sleep timer, OS media-key integration — and a bundled

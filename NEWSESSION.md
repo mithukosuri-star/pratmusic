@@ -1,5 +1,8 @@
 # Resume brief — read this first in a new session
 
+**Repo:** https://github.com/mithukosuri-star/pratmusic  ·  clone: `git clone https://github.com/mithukosuri-star/pratmusic.git`
+(_audio not in repo — regenerate with `python3 tools/build_library.py`, needs `pip install pillow`)_
+
 ## What this project is
 An offline-first installable music PWA (vanilla JS, no build step) with:
 glass/aurora UI that re-themes per track, WebAudio visualizer (3 modes), two-deck crossfade,
