@@ -9,7 +9,17 @@ Usage:  python3 tools/build_library.py [--out DIR] [--skip-existing] [--strict] 
 --demo-audio  force generated demo placeholders for every track (no network needed)
 """
 import json, os, re, io, sys, math, random, wave, struct, zlib, urllib.request, urllib.parse, concurrent.futures as cf
-from PIL import Image, ImageDraw, ImageFilter, ImageOps
+if hasattr(sys.stdout, 'reconfigure'):
+    try: sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    except Exception: pass
+if hasattr(sys.stderr, 'reconfigure'):
+    try: sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    except Exception: pass
+try:
+    from PIL import Image, ImageDraw, ImageFilter, ImageOps
+    HAS_PIL = True
+except ImportError:
+    HAS_PIL = False
 UA = {"User-Agent": "Mozilla/5.0 (pratmusic catalogue builder; personal offline player)"}
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = HERE
@@ -189,14 +199,19 @@ def gen_fallback(tid):
     return ("wave", pal, bg)
 
 def palette(p):
-    im = Image.open(p).convert("RGB").resize((64, 64))
-    cols = sorted(im.quantize(colors=24, method=Image.FASTOCTREE).convert("RGB").getcolors(64*64) or [], reverse=True)
-    def score(c):
-        r, g, b = c; mx, mn = max(r, g, b), min(r, g, b)
-        return (mx-mn)/255*(.35+.65*mx/255)
-    vivid = max(cols[:14], key=lambda x: score(x[1]))[1] if cols else (160, 92, 255)
-    deep = min(cols[:14], key=lambda x: sum(x[1]))[1] if cols else (10, 10, 20)
-    return "#%02x%02x%02x" % vivid, "#%02x%02x%02x" % deep
+    if not HAS_PIL:
+        return "#a05cff", "#120a24"
+    try:
+        im = Image.open(p).convert("RGB").resize((64, 64))
+        cols = sorted(im.quantize(colors=24, method=Image.FASTOCTREE).convert("RGB").getcolors(64*64) or [], reverse=True)
+        def score(c):
+            r, g, b = c; mx, mn = max(r, g, b), min(r, g, b)
+            return (mx-mn)/255*(.35+.65*mx/255)
+        vivid = max(cols[:14], key=lambda x: score(x[1]))[1] if cols else (160, 92, 255)
+        deep = min(cols[:14], key=lambda x: sum(x[1]))[1] if cols else (10, 10, 20)
+        return "#%02x%02x%02x" % vivid, "#%02x%02x%02x" % deep
+    except Exception:
+        return "#a05cff", "#120a24"
 
 def save_cover(im, tid):
     im = ImageOps.fit(im.convert("RGB"), (S, S), Image.LANCZOS, centering=(.5, .45))
@@ -204,7 +219,9 @@ def save_cover(im, tid):
 
 def build_cover(tid, online):
     cpath = f"{COV}/{tid}.jpg"
-    if SKIP and os.path.exists(cpath): return
+    if (SKIP and os.path.exists(cpath)) or os.path.exists(cpath): return
+    if not HAS_PIL:
+        return
     made = False
     if online and tid in REAL:
         try:
@@ -439,7 +456,8 @@ Tracks tagged with vibes like *Lana Del Rey*, *The Neighbourhood*, *Dua Lipa*, *
 
 Imported files never leave your device — they live in IndexedDB inside this browser profile.
 """
-    open(f"{OUT}/CREDITS.md", "w").write(txt)
+    with open(f"{OUT}/CREDITS.md", "w", encoding="utf-8") as f:
+        f.write(txt)
 
 # ── main ─────────────────────────────────────────────────────────────────────
 recs = {}
@@ -452,7 +470,8 @@ with cf.ThreadPoolExecutor(3) as ex:
 lib = []
 for i, tid in enumerate(ORDER):
     t = recs[tid]; t.update(FIX.get(tid, {})); t["n"] = i + 1; lib.append(t)
-json.dump(lib, open(f"{OUT}/library.json", "w"), indent=1)
+with open(f"{OUT}/library.json", "w", encoding="utf-8") as f:
+    json.dump(lib, f, indent=1, ensure_ascii=False)
 write_credits(lib)
 n_demo = sum(1 for t in lib if t.get("placeholder"))
 print(f"library.json: {len(lib)} tracks, {sum(t['bytes'] for t in lib)/1e6:.1f} MB · CREDITS.md written")

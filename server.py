@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """PratMusic dev/preview server — static files + HTTP Range support (audio seeking)."""
 import os, re, sys, socket
+if hasattr(sys.stdout, 'reconfigure'):
+    try: sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    except Exception: pass
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -12,7 +15,9 @@ class Handler(SimpleHTTPRequestHandler):
         **SimpleHTTPRequestHandler.extensions_map,
         '.webmanifest': 'application/manifest+json',
         '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css',
-        '.json': 'application/json', '.mp3': 'audio/mpeg', '.svg': 'image/svg+xml',
+        '.json': 'application/json', '.mp3': 'audio/mpeg', '.wav': 'audio/wav',
+        '.ogg': 'audio/ogg', '.flac': 'audio/flac', '.opus': 'audio/opus',
+        '.m4a': 'audio/mp4', '.svg': 'image/svg+xml',
         '.png': 'image/png', '.jpg': 'image/jpeg', '.woff2': 'font/woff2',
     }
 
@@ -56,7 +61,7 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_header('Content-Type', ctype)
             self.send_header('Accept-Ranges', 'bytes')
             self.send_header('Content-Length', str(size))
-            cc = 'no-cache' if path.endswith(('.html', '.webmanifest')) or path.endswith('sw.js') \
+            cc = 'no-cache' if path.endswith(('.html', '.webmanifest', '.json')) or path.endswith('sw.js') \
                  else 'public, max-age=31536000, immutable'
             self.send_header('Cache-Control', cc)
             self.end_headers()
@@ -81,6 +86,7 @@ class Server(ThreadingHTTPServer):
     allow_reuse_address = True
 
 if __name__ == '__main__':
+    os.chdir(ROOT)
     srv = Server(('0.0.0.0', PORT), Handler)
     print(f'PratMusic serving {ROOT} on 0.0.0.0:{PORT}', flush=True)
     try:

@@ -26,6 +26,7 @@ body{
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 input,select{font:inherit;color:inherit}
 img{display:block}
+img:not([src]),img[src=""]{opacity:0}
 ::selection{background:var(--acc);color:#000}
 .hidden{display:none!important}
 

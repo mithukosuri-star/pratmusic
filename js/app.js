@@ -99,7 +99,7 @@ function playAt(qi, opts = {}) {
         g1.gain.exponentialRampToValueAtTime(1, now + S.xfade);
         g0.gain.cancelScheduledValues(now); g0.gain.setValueAtTime(Math.max(g0.gain.value, 0.0001), now);
         g0.gain.exponentialRampToValueAtTime(0.0001, now + S.xfade);
-        setTimeout(() => { dOut.pause(); if (gains[active] && active !== incoming) gains[active].gain.value = 0; }, S.xfade * 1000 + 120);
+        setTimeout(() => { dOut.pause(); if (g0) g0.gain.value = 0; }, S.xfade * 1000 + 120);
       } else if (gains.length) { gains[incoming].gain.value = 1; gains[active].gain.value = 0; }
       active = incoming;
       onTrackStart(t, opts);
@@ -124,9 +124,24 @@ function onTrackStart(t, opts) {
 }
 function togglePlay() {
   const t = cur(); if (!t) { const ids = visibleIds(); if (ids.length) playList(ids, ids[0]); return; }
-  if (S.playing) { deck().pause(); S.playing = false; document.body.classList.add('paused'); }
-  else { ensureAudio(); deck().play().then(() => { S.playing = true; document.body.classList.remove('paused'); }); }
-  syncPlayerUI();
+  if (S.playing) {
+    deck().pause();
+    S.playing = false;
+    document.body.classList.add('paused');
+    syncPlayerUI();
+  } else {
+    ensureAudio();
+    deck().play().then(() => {
+      S.playing = true;
+      document.body.classList.remove('paused');
+      syncPlayerUI();
+    }).catch((e) => {
+      S.playing = false;
+      document.body.classList.add('paused');
+      syncPlayerUI();
+      toast(`Couldn't play — ${esc(e.name || e.message || e)}`);
+    });
+  }
 }
 function next(auto) {
   if (!S.order.length) return;
@@ -348,6 +363,9 @@ function syncPlayerUI() {
   $('#player').classList.toggle('playing', S.playing);
   $('#np').classList.toggle('on', S.playing);
   document.body.classList.toggle('paused', !S.playing);
+  if ('mediaSession' in navigator) {
+    try { navigator.mediaSession.playbackState = S.playing ? 'playing' : 'paused'; } catch {}
+  }
   if (t) {
     $('#pCover').src = coverOf(t); $('#pTitle').textContent = t.title; $('#pArtist').textContent = t.artist;
     $('#npCover').src = coverOf(t); $('#npBlur').src = coverOf(t);
@@ -357,6 +375,9 @@ function syncPlayerUI() {
     const lic = $('#npLicence'); lic.textContent = t.licenseName ? `${t.licenseName} · ${t.artist}` : 'your file';
     const src = $('#npSource'); if (t.source) { src.href = t.source; src.classList.remove('hidden'); } else src.classList.add('hidden');
     $('#tDur').textContent = fmt(t.duration); $('#npDur').textContent = fmt(t.duration);
+  } else {
+    $('#pCover').removeAttribute('src'); $('#pTitle').textContent = 'Nothing playing'; $('#pArtist').textContent = 'pick a track to start';
+    $('#tDur').textContent = '0:00'; $('#tCur').textContent = '0:00';
   }
   for (const [btn, on] of [['#shuffleBtn', S.shuffle], ['#npShuffle', S.shuffle]]) $(btn).classList.toggle('on', on);
   for (const b of ['#repeatBtn', '#npRepeat']) { $(b).classList.toggle('on', S.repeat !== 'off'); $(b).classList.toggle('one', S.repeat === 'one'); }
@@ -581,8 +602,8 @@ const folderPick = document.createElement('input');
 folderPick.type = 'file'; folderPick.multiple = true; folderPick.webkitdirectory = true; folderPick.hidden = true;
 document.body.appendChild(folderPick);
 $('#addFolderBtn').addEventListener('click', () => folderPick.click());
-$('#filePick').addEventListener('change', (e) => importFiles(e.target.files));
-folderPick.addEventListener('change', (e) => importFiles(e.target.files));
+$('#filePick').addEventListener('change', (e) => { importFiles(e.target.files); e.target.value = ''; });
+folderPick.addEventListener('change', (e) => { importFiles(e.target.files); e.target.value = ''; });
 ['dragenter', 'dragover'].forEach((ev) => window.addEventListener(ev, (e) => { if (e.dataTransfer && [...e.dataTransfer.types].includes('Files')) { e.preventDefault(); $('#dropHint').classList.remove('hidden'); } }));
 ['dragleave', 'drop'].forEach((ev) => window.addEventListener(ev, (e) => { if (ev === 'drop' || e.target === document.documentElement) { e.preventDefault(); $('#dropHint').classList.add('hidden'); } }));
 window.addEventListener('drop', (e) => { e.preventDefault(); $('#dropHint').classList.add('hidden'); if (e.dataTransfer?.files?.length) importFiles(e.dataTransfer.files); });
@@ -610,13 +631,22 @@ async function importFiles(files) {
   toast(`✓ <b>${added}</b> track${added > 1 ? 's' : ''} stored offline`);
 }
 async function removeUserTrack(id) {
+  const isPlaying = cur()?.id === id;
   const i = S.tracks.findIndex((t) => t.id === id); if (i < 0) return;
   const t = S.tracks[i];
+  if (isPlaying) {
+    deck().pause();
+    S.playing = false;
+  }
   await DB.del(id);
   if (S.urls[id]) { URL.revokeObjectURL(S.urls[id]); delete S.urls[id]; }
   S.tracks.splice(i, 1); delete S.byId[id];
   S.order = S.order.filter((x) => x !== id); S.qi = clamp(S.qi, 0, Math.max(0, S.order.length - 1));
   S.favs.delete(id); LS.set('pratmusic.favs', [...S.favs]);
+  if (isPlaying) {
+    if (S.order.length && S.qi >= 0) playAt(S.qi);
+    else syncPlayerUI();
+  }
   renderView(); updateStats(); toast(`removed <b>${esc(t.title)}</b>`);
 }
 async function loadUserTracks() {
@@ -629,16 +659,24 @@ async function loadUserTracks() {
 /* ── media session (OS / lock-screen controls) ─────────────────── */
 function mediaSession(t) {
   if (!('mediaSession' in navigator)) return;
-  navigator.mediaSession.metadata = new MediaMetadata({
-    title: t.title, artist: t.artist, album: t.album,
-    artwork: t.cover && !t.cover.startsWith('data:') ? [{ src: new URL(t.cover, location.href).href, sizes: '800x800', type: 'image/jpeg' }] : []
-  });
-  const ms = navigator.mediaSession;
-  ms.setActionHandler('play', () => togglePlay());
-  ms.setActionHandler('pause', () => togglePlay());
-  ms.setActionHandler('previoustrack', prev);
-  ms.setActionHandler('nexttrack', () => next(false));
-  ms.setActionHandler('seekto', (d) => { if (d.seekTime != null) deck().currentTime = d.seekTime; });
+  try {
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: t.title, artist: t.artist, album: t.album,
+      artwork: t.cover && !t.cover.startsWith('data:') ? [{ src: new URL(t.cover, location.href).href, sizes: '800x800', type: 'image/jpeg' }] : []
+    });
+    navigator.mediaSession.playbackState = S.playing ? 'playing' : 'paused';
+    const ms = navigator.mediaSession;
+    const actions = [
+      ['play', () => togglePlay()],
+      ['pause', () => togglePlay()],
+      ['previoustrack', prev],
+      ['nexttrack', () => next(false)],
+      ['seekto', (d) => { if (d.seekTime != null) deck().currentTime = d.seekTime; }]
+    ];
+    for (const [action, fn] of actions) {
+      try { ms.setActionHandler(action, fn); } catch {}
+    }
+  } catch (e) { console.warn('mediaSession', e); }
 }
 
 /* ── offline status / install / service worker ─────────────────── */

@@ -18,7 +18,15 @@ self.addEventListener('install', (e) => {
       const lib = await res.json();
       const urls = [];
       for (const t of lib) { urls.push('./' + t.file, './' + t.cover); }
-      await cache.addAll(urls.map((u) => new Request(u, { cache: 'reload' })));
+      await Promise.allSettled(urls.map(async (u) => {
+        try {
+          const req = new Request(u, { cache: 'reload' });
+          const resp = await fetch(req);
+          if (resp.ok) await cache.put(req, resp);
+        } catch (err) {
+          console.warn('[sw] failed to cache', u, err);
+        }
+      }));
     } catch (err) { console.warn('[sw] media precache partial:', err); }
     self.skipWaiting();
   })());
@@ -53,7 +61,8 @@ async function rangedResponse(cached, headers) {
       'Content-Range': `bytes ${start}-${end}/${buf.byteLength}`,
       'Accept-Ranges': 'bytes',
       'Content-Length': String(slice.byteLength),
-      'Content-Type': cached.headers.get('Content-Type') || 'audio/mpeg'
+      'Content-Type': cached.headers.get('Content-Type') || (cached.url.endsWith('.wav') ? 'audio/wav' : 'audio/mpeg'),
+      'Access-Control-Allow-Origin': '*'
     }
   });
 }
