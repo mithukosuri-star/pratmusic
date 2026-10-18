@@ -29,6 +29,24 @@ get a standalone window / home-screen icon.
 > app stays fully playable and testable — an amber banner appears in the app until you re-run the
 > build with network access and get the licensed masters.
 
+## Deploy (Website + Mobile PWA)
+
+PratMusic uses relative asset paths (`./`) and ships with `manifest.webmanifest` + `sw.js`, so a single HTTPS static deployment works both as a website and as an installable offline mobile app.
+
+### 1. GitHub Pages (automated via GitHub Actions)
+1. In your GitHub repo, open **Settings → Pages**.
+2. Set **Build and deployment → Source** to **GitHub Actions**.
+3. Push to `main` (or run the **Deploy PratMusic to GitHub Pages** workflow in the **Actions** tab).
+   `.github/workflows/deploy.yml` automatically runs `python3 tools/build_library.py` to fetch the 21 open-licensed MP3 tracks and publishes the site to `https://<username>.github.io/pratmusic/`.
+
+### 2. Cloudflare Pages / Netlify
+- **Build command:** `pip install pillow && python3 tools/build_library.py`
+- **Publish directory:** `.`
+
+### 3. Install on Mobile
+- **Android (Chrome / Edge / Brave):** Open your HTTPS URL and tap **Install app** in the sidebar (or browser menu **⋮ → Install app**).
+- **iPhone / iPad (Safari):** Open your HTTPS URL in Safari and tap **Share → Add to Home Screen**.
+
 ## What's inside
 
 | Piece | File(s) | Notes |
