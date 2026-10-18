@@ -18,7 +18,21 @@ Each work keeps its original Creative Commons licence — attribution below. Ple
 | 11 | Es kann nicht ewig Winter sein | Bersarin Quartett | Electronica Unplugged 2 | — | [CC BY-NC-SA 3.0](http://creativecommons.org/licenses/by-nc-sa/3.0/) | [aer006](https://archive.org/details/aer006) |
 | 12 | Light Part 2 | Gregg Plummer | Ambient Collective: Light | 2007 | [CC BY-ND 3.0](http://creativecommons.org/licenses/by-nd/3.0/) | [amb_col_light](https://archive.org/details/amb_col_light) |
 | 13 | Different But Equivalent | Oldboy Melody | [GT390] Fandorin Projet 2 | 2012 | [CC0 1.0 (Public Domain)](http://creativecommons.org/publicdomain/zero/1.0/) | [gt390FandorinProjet2](https://archive.org/details/gt390FandorinProjet2) |
+| 14 | Ghost In Your Headlights | Electric Mirrors | UFO Stories | 2016 | [CC BY-NC-SA 3.0](http://creativecommons.org/licenses/by-nc-sa/3.0/) | [BSOG0058](https://archive.org/details/BSOG0058) |
+| 15 | Keep You Safe | Fire To The Stars | Keep You Safe | 2014 | [CC BY-NC-ND 4.0](https://creativecommons.org/licenses/by-nc-nd/4.0/) | [FireToTheStars-KeepYouSafe2014lgn030](https://archive.org/details/FireToTheStars-KeepYouSafe2014lgn030) |
+| 16 | Glow In Transparancy Aurora | Korine Conception | Silent Sight | 2010 | [CC BY-NC-SA 3.0 US](http://creativecommons.org/licenses/by-nc-sa/3.0/us/) | [sar_025.variousArtists-SilentSight](https://archive.org/details/sar_025.variousArtists-SilentSight) |
+| 17 | Little Love | Lipstick | Little Love EP | 2004 | [CC BY-NC-ND 3.0](http://creativecommons.org/licenses/by-nc-nd/3.0/) | [Lipstick-LittleLoveEp](https://archive.org/details/Lipstick-LittleLoveEp) |
+| 18 | Girls & Boys | King Elizabeth | Girls & Boys | 2020 | [CC BY-NC-ND 4.0](https://creativecommons.org/licenses/by-nc-nd/4.0/) | [kingelizabeth-girlsboys2020](https://archive.org/details/kingelizabeth-girlsboys2020) |
+| 19 | Neon Jesus Wins The World Cup | Electric Mirrors | UFO Stories | 2016 | [CC BY-NC-SA 3.0](http://creativecommons.org/licenses/by-nc-sa/3.0/) | [BSOG0058](https://archive.org/details/BSOG0058) |
+| 20 | Glimmer | Garmisch | Garmisch | 2010 | [CC BY-NC-ND 3.0](http://creativecommons.org/licenses/by-nc-nd/3.0/) | [BSOG0008](https://archive.org/details/BSOG0008) |
+| 21 | Back In Time | Asaguare | Back In Time | 2011 | [CC BY-NC-SA 3.0](http://creativecommons.org/licenses/by-nc-sa/3.0/) | [BackInTime](https://archive.org/details/BackInTime) |
 
-Album artwork belongs to the respective releases; three covers (chiptune & post-classical picks) were generated procedurally by PratMusic because the source items shipped only low-res art.
+Album artwork belongs to the respective releases; a few covers (marked by the items shipping only low-res art) were generated procedurally by PratMusic.
 
-Your imported files never leave your device — they live in IndexedDB inside this browser profile.
+## Vibe matches — not their songs
+
+Tracks tagged with vibes like *Lana Del Rey*, *The Neighbourhood*, *Dua Lipa*, *Rihanna* or *Lady Gaga* are **openly licensed look-alikes, never the original recordings**. Those artists' masters are copyrighted and are never bundled. Own their music? Drop your files into **Your music → Bring your own files** — they stay in this browser and play offline.
+
+## Your files
+
+Imported files never leave your device — they live in IndexedDB inside this browser profile.
