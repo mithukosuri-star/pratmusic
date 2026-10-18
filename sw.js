@@ -1,33 +1,47 @@
 /* PratMusic — offline-first service worker.
-   Precaches the app shell, library metadata, cover art and all bundled audio
-   so the whole player works with the network (and the server) fully offline.
-   Supports HTTP Range requests out of the cache so audio seeking works offline. */
-const VERSION = 'pratmusic-v2';
+   Precaches the app shell, library metadata, cover art and bundled audio
+   with bounded concurrency so initial page load & playback stay fast.
+   Supports zero-copy HTTP Range requests from cache via Blob.slice(). */
+const VERSION = 'pratmusic-v3';
 const CORE = [
   './', './index.html', './manifest.webmanifest',
   './css/style.css', './js/db.js', './js/app.js', './library.json',
   './icons/icon-192.png', './icons/icon-512.png', './icons/maskable-512.png'
 ];
 
+async function cacheInBatches(cache, urls, concurrency = 3) {
+  let idx = 0;
+  async function worker() {
+    while (idx < urls.length) {
+      const u = urls[idx++];
+      try {
+        const hit = await cache.match(u, { ignoreSearch: true });
+        if (hit) continue;
+        const resp = await fetch(u);
+        if (resp.status === 200) await cache.put(u, resp);
+      } catch (err) {
+        console.warn('[sw] failed to cache', u, err);
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, urls.length) }, () => worker()));
+}
+
 self.addEventListener('install', (e) => {
   e.waitUntil((async () => {
     const cache = await caches.open(VERSION);
     await cache.addAll(CORE);
     try {
-      const res = await fetch('./library.json', { cache: 'no-store' });
+      const res = await fetch('./library.json');
       const lib = await res.json();
-      const urls = [];
-      for (const t of lib) { urls.push('./' + t.file, './' + t.cover); }
-      await Promise.allSettled(urls.map(async (u) => {
-        try {
-          const req = new Request(u, { cache: 'reload' });
-          const resp = await fetch(req);
-          if (resp.ok) await cache.put(req, resp);
-        } catch (err) {
-          console.warn('[sw] failed to cache', u, err);
-        }
-      }));
-    } catch (err) { console.warn('[sw] media precache partial:', err); }
+      const covers = lib.map((t) => './' + t.cover);
+      const audio = lib.map((t) => './' + t.file);
+      // Cache small cover images first so UI renders immediately, then audio with low concurrency
+      await cacheInBatches(cache, covers, 4);
+      await cacheInBatches(cache, audio, 2);
+    } catch (err) {
+      console.warn('[sw] media precache partial:', err);
+    }
     self.skipWaiting();
   })());
 });
@@ -47,21 +61,31 @@ self.addEventListener('message', (e) => {
 async function rangedResponse(cached, headers) {
   const range = headers.get('range');
   if (!range) return cached;
-  const buf = await cached.arrayBuffer();
   const m = /bytes=(\d*)-(\d*)/.exec(range);
   if (!m) return cached;
+  const blob = await cached.blob();
+  const size = blob.size;
+  if (!size) return cached;
   let start = m[1] === '' ? 0 : parseInt(m[1], 10);
-  let end = m[2] === '' ? buf.byteLength - 1 : parseInt(m[2], 10);
-  if (m[1] === '' && m[2] !== '') { start = buf.byteLength - parseInt(m[2], 10); end = buf.byteLength - 1; }
-  end = Math.min(end, buf.byteLength - 1);
-  const slice = buf.slice(start, end + 1);
+  let end = m[2] === '' ? size - 1 : parseInt(m[2], 10);
+  if (m[1] === '' && m[2] !== '') {
+    start = Math.max(0, size - parseInt(m[2], 10));
+    end = size - 1;
+  }
+  start = Math.max(0, start);
+  end = Math.min(end, size - 1);
+  if (start > end) {
+    return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${size}` } });
+  }
+  const ctype = cached.headers.get('Content-Type') || (cached.url.endsWith('.wav') ? 'audio/wav' : 'audio/mpeg');
+  const slice = blob.slice(start, end + 1, ctype);
   return new Response(slice, {
     status: 206,
     headers: {
-      'Content-Range': `bytes ${start}-${end}/${buf.byteLength}`,
+      'Content-Range': `bytes ${start}-${end}/${size}`,
       'Accept-Ranges': 'bytes',
-      'Content-Length': String(slice.byteLength),
-      'Content-Type': cached.headers.get('Content-Type') || (cached.url.endsWith('.wav') ? 'audio/wav' : 'audio/mpeg'),
+      'Content-Length': String(slice.size),
+      'Content-Type': ctype,
       'Access-Control-Allow-Origin': '*'
     }
   });
@@ -77,7 +101,6 @@ self.addEventListener('fetch', (e) => {
     const cache = await caches.open(VERSION);
     const hit = await cache.match(req, { ignoreSearch: true });
     if (hit) {
-      // Keep audio/media fresh-forever from cache but answer range requests properly.
       if (req.headers.has('range')) {
         try { return await rangedResponse(hit, req.headers); } catch (err) { /* fall through */ }
       }
@@ -85,7 +108,7 @@ self.addEventListener('fetch', (e) => {
     }
     try {
       const res = await fetch(req);
-      if (res.ok && url.origin === self.location.origin) {
+      if (res.status === 200 && url.origin === self.location.origin) {
         cache.put(req, res.clone());
       }
       return res;

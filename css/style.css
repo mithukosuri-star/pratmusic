@@ -37,22 +37,22 @@ img:not([src]),img[src=""]{opacity:0}
 *::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.28);background-clip:content-box}
 
 /* ── aurora backdrop ─────────────────────────────────────────── */
-#aurora{position:fixed;inset:-20%;z-index:-2;filter:blur(70px) saturate(1.25);opacity:.75;transition:opacity .6s}
-#aurora .b{position:absolute;width:46vmax;height:46vmax;border-radius:50%;mix-blend-mode:screen;transition:background 1.4s ease}
-#aurora .b1{background:radial-gradient(circle at 50% 50%,var(--acc),transparent 62%);top:-8vmax;left:-6vmax;animation:drift1 26s var(--ease) infinite alternate}
-#aurora .b2{background:radial-gradient(circle at 50% 50%,var(--acc2),transparent 62%);bottom:-14vmax;right:-8vmax;animation:drift2 31s var(--ease) infinite alternate}
-#aurora .b3{background:radial-gradient(circle at 50% 50%,var(--deep),transparent 70%);top:30%;left:42%;width:60vmax;height:60vmax;animation:drift3 38s var(--ease) infinite alternate}
-@keyframes drift1{to{transform:translate3d(14vmax,10vmax,0) scale(1.15)}}
-@keyframes drift2{to{transform:translate3d(-12vmax,-8vmax,0) scale(1.22)}}
-@keyframes drift3{to{transform:translate3d(8vmax,-12vmax,0) scale(.9)}}
-#grain{position:fixed;inset:0;z-index:60;pointer-events:none;opacity:.05;mix-blend-mode:overlay;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E")}
+#aurora{position:fixed;inset:-10%;z-index:-2;opacity:.55;pointer-events:none;contain:strict}
+#aurora .b{position:absolute;width:48vmax;height:48vmax;border-radius:50%;will-change:transform;transition:background 1.2s ease}
+#aurora .b1{background:radial-gradient(circle at 50% 50%,var(--acc),transparent 66%);top:-8vmax;left:-6vmax;animation:drift1 28s var(--ease) infinite alternate}
+#aurora .b2{background:radial-gradient(circle at 50% 50%,var(--acc2),transparent 66%);bottom:-14vmax;right:-8vmax;animation:drift2 34s var(--ease) infinite alternate}
+#aurora .b3{background:radial-gradient(circle at 50% 50%,var(--deep),transparent 70%);top:30%;left:42%;width:60vmax;height:60vmax;animation:drift3 40s var(--ease) infinite alternate}
+body.paused #aurora .b{animation-play-state:paused}
+@keyframes drift1{to{transform:translate3d(12vmax,8vmax,0) scale(1.1)}}
+@keyframes drift2{to{transform:translate3d(-10vmax,-6vmax,0) scale(1.15)}}
+@keyframes drift3{to{transform:translate3d(6vmax,-10vmax,0) scale(.92)}}
+#grain{display:none}
 
 /* ── sidebar ─────────────────────────────────────────────────── */
 #side{
   display:flex;flex-direction:column;gap:14px;padding:20px 14px 14px;
-  background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.015));
-  border-right:1px solid var(--line);backdrop-filter:blur(26px);-webkit-backdrop-filter:blur(26px);
+  background:linear-gradient(180deg,rgba(16,16,26,.88),rgba(10,10,18,.92));
+  border-right:1px solid var(--line);
   z-index:5;overflow:hidden auto;
 }
 .brand{display:flex;align-items:center;gap:11px;padding:2px 8px}
@@ -132,26 +132,26 @@ img:not([src]),img[src=""]{opacity:0}
 
 /* stat strip */
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin:16px 0 4px}
-.stat{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px 16px;backdrop-filter:blur(14px)}
+.stat{background:rgba(20,20,32,.72);border:1px solid var(--line);border-radius:16px;padding:14px 16px}
 .stat b{display:block;font-size:21px;font-weight:800;background:linear-gradient(120deg,var(--acc),var(--acc2));-webkit-background-clip:text;background-clip:text;color:transparent}
 .stat span{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim)}
 
 /* ── track grid cards ────────────────────────────────────────── */
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(172px,1fr));gap:16px}
-.card{position:relative;border-radius:var(--r);padding:12px;background:var(--panel);border:1px solid var(--line);
-  backdrop-filter:blur(16px);transition:transform .28s var(--ease),border-color .25s,box-shadow .3s;overflow:hidden;isolation:isolate}
-.card::after{content:"";position:absolute;inset:0;z-index:-1;opacity:0;transition:opacity .3s;pointer-events:none;
-  background:radial-gradient(240px circle at var(--mx,50%) var(--my,50%),color-mix(in srgb,var(--tc,var(--acc)) 20%,transparent),transparent 65%)}
-.card:hover{transform:translateY(-5px);border-color:color-mix(in srgb,var(--tc,var(--acc)) 55%,transparent);
-  box-shadow:0 18px 44px -18px color-mix(in srgb,var(--tc,var(--acc)) 65%,#000)}
+.card{position:relative;border-radius:var(--r);padding:12px;background:rgba(20,20,32,.72);border:1px solid var(--line);
+  transition:transform .24s var(--ease),border-color .22s,box-shadow .25s;overflow:hidden;contain:content}
+.card::after{content:"";position:absolute;inset:0;z-index:-1;opacity:0;transition:opacity .25s;pointer-events:none;
+  background:radial-gradient(220px circle at 50% 35%,color-mix(in srgb,var(--tc,var(--acc)) 18%,transparent),transparent 70%)}
+.card:hover{transform:translateY(-4px);border-color:color-mix(in srgb,var(--tc,var(--acc)) 55%,transparent);
+  box-shadow:0 16px 36px -18px color-mix(in srgb,var(--tc,var(--acc)) 60%,#000)}
 .card:hover::after{opacity:1}
-.card .cov{position:relative;border-radius:12px;overflow:hidden;aspect-ratio:1;box-shadow:0 8px 26px -10px #000}
-.card .cov img{width:100%;height:100%;object-fit:cover;transition:transform .5s var(--ease)}
-.card:hover .cov img{transform:scale(1.07)}
-.card .go{position:absolute;inset:0;display:grid;place-items:center;background:rgba(4,4,10,.42);opacity:0;transition:opacity .25s}
+.card .cov{position:relative;border-radius:12px;overflow:hidden;aspect-ratio:1;box-shadow:0 8px 22px -10px #000}
+.card .cov img{width:100%;height:100%;object-fit:cover;transition:transform .4s var(--ease)}
+.card:hover .cov img{transform:scale(1.05)}
+.card .go{position:absolute;inset:0;display:grid;place-items:center;background:rgba(4,4,10,.42);opacity:0;transition:opacity .22s}
 .card:hover .go,.card.playing .go{opacity:1}
 .card .go b{width:52px;height:52px;border-radius:50%;display:grid;place-items:center;background:var(--tc,var(--acc));color:#000;
-  box-shadow:0 0 26px var(--tc,var(--acc));transform:translateY(6px);transition:transform .28s var(--ease)}
+  box-shadow:0 0 22px var(--tc,var(--acc));transform:translateY(6px);transition:transform .24s var(--ease)}
 .card:hover .go b{transform:none}
 .card .go svg{width:20px;height:20px;fill:#000}
 .card .t{margin-top:10px;font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -160,7 +160,7 @@ img:not([src]),img[src=""]{opacity:0}
 .card .g{font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--tc,var(--acc));opacity:.95}
 .card .d{margin-left:auto;font-size:10.5px;color:var(--dim)}
 .card .fav{position:absolute;top:18px;right:18px;z-index:3;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;
-  background:rgba(6,6,11,.55);backdrop-filter:blur(6px);color:#fff;opacity:0;transition:.22s;font-size:14px}
+  background:rgba(6,6,11,.72);color:#fff;opacity:0;transition:.2s;font-size:14px}
 .card:hover .fav,.card .fav.on{opacity:1}
 .card .fav.on{color:#ff3b6b;text-shadow:0 0 12px #ff3b6b}
 .card.playing{border-color:color-mix(in srgb,var(--tc,var(--acc)) 70%,transparent)}
@@ -287,11 +287,11 @@ kbd{font:11px/1 ui-monospace,monospace;background:var(--panel-2);border:1px soli
 #dropHint span{color:var(--dim)}
 
 /* ── now playing ─────────────────────────────────────────────── */
-.np{position:fixed;inset:0;z-index:45;overflow:hidden;background:rgba(5,5,10,.86);backdrop-filter:blur(34px);
-  animation:npin .5s var(--ease)}
-@keyframes npin{from{opacity:0;transform:scale(1.03)}}
+.np{position:fixed;inset:0;z-index:45;overflow:hidden;background:rgba(5,5,10,.92);
+  animation:npin .35s var(--ease)}
+@keyframes npin{from{opacity:0;transform:scale(1.02)}}
 .np-bg{position:absolute;inset:-6%;z-index:-1}
-.np-bg img{width:100%;height:100%;object-fit:cover;filter:blur(70px) saturate(1.5) brightness(.5);transform:scale(1.15)}
+.np-bg img{width:100%;height:100%;object-fit:cover;filter:blur(28px) saturate(1.3) brightness(.45);transform:scale(1.12)}
 #viz{position:absolute;inset:0;width:100%;height:100%;opacity:.55}
 #npClose{position:absolute;top:16px;right:20px;z-index:6;font-size:22px}
 .np-main{position:relative;z-index:3;height:100%;display:grid;grid-template-columns:minmax(280px,44%) 1fr;gap:5vmin;
@@ -302,7 +302,8 @@ kbd{font:11px/1 ui-monospace,monospace;background:var(--panel-2);border:1px soli
   transition:transform .2s ease-out;transform-style:preserve-3d}
 .np-cover-tilt img{width:100%;height:100%;object-fit:cover}
 .np-shine{position:absolute;inset:0;background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.22) 46%,transparent 60%);
-  transform:translateX(-60%);animation:shine 5.5s ease-in-out infinite}
+  transform:translateX(-60%);animation:shine 5.5s ease-in-out infinite;animation-play-state:paused}
+.np.on .np-shine{animation-play-state:running}
 @keyframes shine{0%,55%{transform:translateX(-70%)}90%,100%{transform:translateX(70%)}}
 .np-disc{position:absolute;width:min(46vmin,430px);aspect-ratio:1;border-radius:50%;z-index:-1;
   background:repeating-radial-gradient(circle at 50% 50%,#0c0c12 0 2px,#15151d 2px 4px);opacity:.55;transform:translateX(34%) scale(.94);
