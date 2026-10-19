@@ -32,10 +32,11 @@
       <path d="M28 28 L46 32" stroke="#3bff8e" stroke-width="1.6"/>
       <path d="M28 29 L46 38" stroke="#20c4ff" stroke-width="1.6"/>
     </svg>
-    <div class="brand-txt"><b class="brandname">PRATMUSIC</b><span>offline music</span></div>
+    <div class="brand-txt"><b class="brandname">PRATMUSIC</b><span>online + your music</span></div>
   </div>
 
   <nav id="nav">
+    <button class="nav-btn" data-view="online" title="Search online music"><svg viewBox="0 0 24 24"><circle cx="10" cy="10" r="7"/><path d="m15 15 6 6"/></svg><span>Online music</span></button>
     <button class="nav-btn active" data-view="home"    title="Home (1)"><svg viewBox="0 0 24 24"><path d="M3 11 12 3l9 8v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg><span>Home</span></button>
     <button class="nav-btn" data-view="library" title="Library (2)"><svg viewBox="0 0 24 24"><path d="M4 4h3v16H4zM9.5 4h3v16h-3zM15 5.5l4-1 3.5 14.6-4 1z"/></svg><span>Library</span></button>
     <button class="nav-btn" data-view="favs"    title="Favorites (3)"><svg viewBox="0 0 24 24"><path d="M12 21s-7.5-4.7-9.7-9C.7 8.6 2.6 5 6.1 5c2 0 3.4 1.1 4.2 2.4h1.4C12.5 6.1 13.9 5 15.9 5c3.5 0 5.4 3.6 3.8 7-2.2 4.3-9.7 9-9.7 9z"/></svg><span>Favorites</span></button>
@@ -57,7 +58,7 @@
   <header id="topbar">
     <div class="search">
       <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-      <input id="search" type="search" placeholder="Search titles, artists, albums…   press /" autocomplete="off">
+      <input id="search" type="search" placeholder="Search songs or artists…" aria-label="Search songs or artists" autocomplete="off">
       <button id="clearSearch" class="icon-btn sm hidden" title="Clear">✕</button>
     </div>
     <div class="top-actions">
@@ -192,6 +193,7 @@
 <div id="dropHint" class="hidden"><div><b>Drop audio files</b><span>they'll be stored offline in this browser</span></div></div>
 
 <script src="js/db.js"></script>
+<script src="js/online.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

@@ -2,10 +2,10 @@
    Precaches the app shell, library metadata, cover art and bundled audio
    with bounded concurrency so initial page load & playback stay fast.
    Supports zero-copy HTTP Range requests from cache via Blob.slice(). */
-const VERSION = 'pratmusic-v3';
+const VERSION = 'pratmusic-v6';
 const CORE = [
   './', './index.html', './manifest.webmanifest',
-  './css/style.css', './js/db.js', './js/app.js', './library.json',
+  './css/style.css', './js/db.js', './js/online.js', './js/app.js', './library.json', './free-catalog.json',
   './icons/icon-192.png', './icons/icon-512.png', './icons/maskable-512.png'
 ];
 
@@ -99,6 +99,12 @@ self.addEventListener('fetch', (e) => {
 
   e.respondWith((async () => {
     const cache = await caches.open(VERSION);
+    if (url.pathname.endsWith('.html') || url.pathname.endsWith('.js') || url.pathname.endsWith('.css') || url.pathname.endsWith('.json') || req.mode === 'navigate') {
+      try {
+        const fresh = await fetch(req);
+        if (fresh.ok) { await cache.put(req, fresh.clone()); return fresh; }
+      } catch { /* use offline copy */ }
+    }
     const hit = await cache.match(req, { ignoreSearch: true });
     if (hit) {
       if (req.headers.has('range')) {

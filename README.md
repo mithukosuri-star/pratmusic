@@ -1,3 +1,28 @@
+# PratMusic — online discovery + local music
+
+## Free full-length online music
+
+The Online music view streams full MP3 tracks from the project's curated,
+open-licensed Internet Archive catalog. There are no Apple previews, API keys,
+accounts, subscriptions, or artificial 30-second cutoffs. Clear search to browse
+all; search jazz, ambient, synth-pop, or a catalog artist/title to filter.
+
+This is an independent catalog, **not all commercial music or the Spotify catalog**.
+Only items whose provider metadata declares a Creative Commons/public-domain
+license are offered. Source/license attribution remains in Now Playing. Respect
+per-track license conditions (including noncommercial restrictions where present).
+Provider availability and browser CORS policies affect playback.
+
+Run `python3 server.py 8000`. Tests: `node --test tests/online.test.cjs`.
+The browser resolves original MP3 filenames/durations from Archive metadata;
+local catalog tests use mocked responses. This sandbox cannot reach archive.org,
+so real provider streaming must be verified from your browser/network.
+
+Local audio in `media/` is excluded from Git. The older offline catalog still
+requires the library builder below; online full-track streaming does not.
+
+---
+
 # 🎧 PratMusic — offline music
 
 > Repo: https://github.com/mithukosuri-star/pratmusic — clone it, then `pip install pillow && python3 tools/build_library.py` to fetch the 70 MB open-licensed catalogue.
