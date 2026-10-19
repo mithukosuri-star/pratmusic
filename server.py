@@ -46,14 +46,18 @@ class Handler(SimpleHTTPRequestHandler):
                     start, end = int(s), (int(e) if e else size - 1)
                 start, end = max(0, start), min(end, size - 1)
                 if start > end:
-                    self.send_error(416, 'Range not satisfiable')
+                    # RFC 9110: a 416 must report the current length of the file.
+                    self.send_response(416)
+                    self.send_header('Content-Range', f'bytes */{size}')
+                    self.send_header('Content-Length', '0')
+                    self.end_headers()
                     f.close(); return None
                 self.send_response(206)
                 self.send_header('Content-Type', ctype)
                 self.send_header('Accept-Ranges', 'bytes')
                 self.send_header('Content-Range', f'bytes {start}-{end}/{size}')
                 self.send_header('Content-Length', str(end - start + 1))
-                self.send_header('Cache-Control', 'public, max-age=31536000, immutable')
+                self.send_header('Cache-Control', self._cache_control(path))
                 self.end_headers()
                 f.seek(start)
                 return _Limit(f, end - start + 1)
@@ -61,13 +65,27 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_header('Content-Type', ctype)
             self.send_header('Accept-Ranges', 'bytes')
             self.send_header('Content-Length', str(size))
-            cc = 'no-cache' if path.endswith(('.html', '.webmanifest', '.json', '.js', '.css')) or path.endswith('sw.js') \
-                 else 'public, max-age=31536000, immutable'
-            self.send_header('Cache-Control', cc)
+            self.send_header('Cache-Control', self._cache_control(path))
             self.end_headers()
             return f
         except Exception:
             f.close(); raise
+
+    @staticmethod
+    def _cache_control(path):
+        # App shell / metadata must always revalidate; media is immutable.
+        # Same policy for full (200) and partial (206) responses.
+        if path.endswith(('.html', '.webmanifest', '.json', '.js', '.css')):
+            return 'no-cache'
+        return 'public, max-age=31536000, immutable'
+
+    def copyfile(self, source, outputfile):
+        # Browsers abort audio transfers constantly (seeking, skipping tracks);
+        # that is normal, not an error worth a traceback.
+        try:
+            super().copyfile(source, outputfile)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            self.close_connection = True
 
     def end_headers(self):
         self.send_header('Access-Control-Allow-Origin', '*')
