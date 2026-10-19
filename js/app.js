@@ -1,7 +1,7 @@
 /* ═════════════════════════════════════════════════════════════════
    PRATMUSIC — offline music player · engine + UI
    everything lives on-device: bundled open-licensed catalogue (library.json)
-   plus anything you import (IndexedDB). No network calls at runtime.
+   plus imports (IndexedDB) and on-demand open-licensed full tracks.
    ═════════════════════════════════════════════════════════════════ */
 (() => {
 'use strict';
@@ -195,6 +195,7 @@ function cycleRepeat() { S.repeat = S.repeat === 'off' ? 'all' : S.repeat === 'a
 /* ── library & filtering ───────────────────────────────────────── */
 function allTracks() { return S.tracks; }
 function visibleIds() {
+  if (S.view === 'online') return online.ids;
   const q = S.query.trim().toLowerCase();
   return S.tracks.filter((t) =>
     (S.genre === 'all' || t.genre === S.genre) &&
@@ -301,11 +302,30 @@ function byoHtml() {
     </div>
   </section>`;
 }
+const online = { ids: [], loading: false, error: '', searched: false, version: 0 };
+async function searchOnline() {
+  const version = ++online.version;
+  const term = S.query.trim();
+  online.ids = []; online.error = ''; online.searched = true;
+  online.loading = true;
+  renderView(true);
+  try {
+    if (!navigator.onLine) throw new Error('You are offline. Online search needs an internet connection.');
+    const results = await OnlineMusic.search(term);
+    if (version !== online.version) return;
+    for (const t of results) S.byId[t.id] = t;
+    online.ids = [...new Set(results.map(t => t.id))];
+  } catch (e) { if (version === online.version) online.error = e.message; }
+  finally { if (version === online.version) { online.loading = false; if (S.view === 'online') renderView(true); } }
+}
+
 function renderView(soft) {
   const tracks = allTracks();
   const ids = visibleIds(), list = ids.map((id) => S.byId[id]);
   let html = '';
-  if (S.view === 'home') {
+  if (S.view === 'online') {
+    html = `<div class="sec"><h2>Online music</h2></div><p>Free, full-length music from our curated open-licensed Internet Archive catalog. Search by title, artist or genre, or clear search to browse all tracks.</p><p class="tiny">No subscription or preview cutoff. This independent catalog does not include every commercial artist. Internet is required; source and license are shown in Now Playing.</p><div role="status" aria-live="polite">${online.loading ? 'Loading full-length tracks…' : online.error ? esc(online.error) : !online.searched ? 'Browse free music or search jazz, ambient, or synth-pop.' : online.ids.length ? `${online.ids.length} full tracks found` : 'No playable full tracks found. Try another artist or song.'}</div>` + (!online.loading && !online.error ? gridOrRows(online.ids.map(id => S.byId[id])) : '');
+  } else if (S.view === 'home') {
     const day = Math.floor(Date.now() / 864e5);
     const pick = tracks[day % tracks.length] || tracks[0];
     const mins = Math.round(tracks.reduce((a, t) => a + (t.duration || 0), 0) / 60);
@@ -343,7 +363,7 @@ function renderView(soft) {
         <span class="g" style="text-align:right">${esc(t.licenseName)}<br><a href="${esc(t.source)}" target="_blank" rel="noopener">archive.org ↗</a></span></div>`).join('')}</div>
       <p style="margin-top:16px">Imported files never leave your device. PratMusic itself is a single offline web app — install it and it works in airplane mode.</p></div>`;
   }
-  viewEl.innerHTML = demoBannerHtml() + html;
+  viewEl.innerHTML = (S.view === 'online' ? '' : demoBannerHtml()) + html;
   if (!soft) { viewEl.classList.remove('swap'); void viewEl.offsetWidth; viewEl.classList.add('swap'); }
   renderGenreChips();
 }
@@ -505,6 +525,7 @@ function toast(html, ms = 3200) {
 function setView(v) {
   S.view = v; $$('#nav .nav-btn').forEach((b) => b.classList.toggle('active', b.dataset.view === v));
   renderView(); history.replaceState(null, '', '#' + v);
+  if (v === 'online') searchOnline();
 }
 $('#nav').addEventListener('click', (e) => { const b = e.target.closest('.nav-btn'); if (b) setView(b.dataset.view); });
 $('#genreChips').addEventListener('click', (e) => { const b = e.target.closest('.gchip'); if (!b) return; S.genre = b.dataset.genre; renderView(); });
@@ -621,10 +642,12 @@ $('.np-art').addEventListener('mouseleave', () => { $('.np-cover-tilt').style.tr
 
 /* search */
 const searchEl = $('#search');
+let onlineTimer;
 searchEl.addEventListener('input', () => { S.query = searchEl.value; $('#clearSearch').classList.toggle('hidden', !S.query);
+  if (S.view === 'online') { clearTimeout(onlineTimer); ++online.version; online.loading = true; online.ids = []; renderView(true); onlineTimer = setTimeout(searchOnline, 400); return; }
   if (S.view === 'home' || S.view === 'credits' || S.view === 'uploads') setViewSoftLibrary(); renderView(true); });
 function setViewSoftLibrary() { if (S.query && (S.view === 'home')) S.view = 'library', $$('#nav .nav-btn').forEach((b) => b.classList.toggle('active', b.dataset.view === 'library')); }
-$('#clearSearch').addEventListener('click', () => { searchEl.value = ''; S.query = ''; $('#clearSearch').classList.add('hidden'); renderView(); });
+$('#clearSearch').addEventListener('click', () => { searchEl.value = ''; S.query = ''; $('#clearSearch').classList.add('hidden'); clearTimeout(onlineTimer); if (S.view === 'online') searchOnline(); else renderView(); });
 
 /* help modal */
 $('#helpBtn').addEventListener('click', () => $('#modal').classList.remove('hidden'));
@@ -725,8 +748,8 @@ function mediaSession(t) {
     navigator.mediaSession.playbackState = S.playing ? 'playing' : 'paused';
     const ms = navigator.mediaSession;
     const actions = [
-      ['play', () => togglePlay()],
-      ['pause', () => togglePlay()],
+      ['play', () => { if (!S.playing) togglePlay(); }],
+      ['pause', () => { if (S.playing) togglePlay(); }],
       ['previoustrack', prev],
       ['nexttrack', () => next(false)],
       ['seekto', (d) => { if (d.seekTime != null) deck().currentTime = d.seekTime; }]
@@ -741,7 +764,7 @@ function mediaSession(t) {
 function updateOfflineBadge() {
   const el = $('#offlineBadge'); const on = navigator.onLine;
   el.classList.toggle('off', !on);
-  el.querySelector('span').textContent = on ? 'online · cached for offline' : 'offline mode — all local';
+  el.querySelector('span').textContent = on ? 'online · streaming available' : 'offline mode — all local';
 }
 addEventListener('online', updateOfflineBadge); addEventListener('offline', updateOfflineBadge);
 let installEvt = null;
@@ -757,18 +780,27 @@ async function updateStats() {
     $('#libStats').textContent += ` · ${(e.usage / 1e6).toFixed(0)} MB`; } } catch {}
 }
 
+/* Reserve the real player height, including wrapping controls and phone safe area. */
+if ('ResizeObserver' in window) {
+  new ResizeObserver(([entry]) => {
+    const height = Math.ceil(entry.target.getBoundingClientRect().height);
+    document.documentElement.style.setProperty('--player-space', `${height}px`);
+  }).observe($('#player'));
+}
+
 /* ── boot ──────────────────────────────────────────────────────── */
 (async function boot() {
   setAccent(null); applyVolume(); syncVol();
-  const res = await fetch('library.json');
-  const lib = await res.json();
+  let lib = [];
+  try { const res = await fetch('library.json'); if (!res.ok) throw new Error('Catalog unavailable'); lib = await res.json(); }
+  catch (e) { toast('Local catalog unavailable — online search and imports still work.'); }
   for (const t of lib) { t.kind = 'bundled'; S.tracks.push(t); S.byId[t.id] = t; }
   await loadUserTracks();
   updateStats(); updateOfflineBadge();
   const hash = location.hash.replace('#', '');
-  setView(['home', 'library', 'favs', 'uploads', 'credits'].includes(hash) ? hash : 'home');
+  setView(['online', 'home', 'library', 'favs', 'uploads', 'credits'].includes(hash) ? hash : 'online');
   renderQueue(); syncPlayerUI();
   document.body.classList.add('paused');
-  toast(`🎧 <b>PratMusic</b> ready — ${S.tracks.filter(t=>t.kind==='bundled').length} open-licensed tracks cached for offline play`);
+  toast(`🎧 <b>PratMusic</b> ready — ${S.tracks.filter(t=>t.kind==='bundled').length} catalog tracks · Online music streams free full tracks`);
 })();
 })();

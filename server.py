@@ -61,7 +61,7 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_header('Content-Type', ctype)
             self.send_header('Accept-Ranges', 'bytes')
             self.send_header('Content-Length', str(size))
-            cc = 'no-cache' if path.endswith(('.html', '.webmanifest', '.json')) or path.endswith('sw.js') \
+            cc = 'no-cache' if path.endswith(('.html', '.webmanifest', '.json', '.js', '.css')) or path.endswith('sw.js') \
                  else 'public, max-age=31536000, immutable'
             self.send_header('Cache-Control', cc)
             self.end_headers()
